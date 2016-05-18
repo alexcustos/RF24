@@ -1,6 +1,9 @@
 /*
  Copyright (C) 2011 J. Coliz <maniacbug@ymail.com>
 
+ Modified by Aleksandr Borisenko to make it compile without arduino core.
+ NOTE: Only the ATmega328P is supported. CE and CSN PINs are hardcoded to PB1 and PB2 respectively.
+
  This program is free software; you can redistribute it and/or
  modify it under the terms of the GNU General Public License
  version 2 as published by the Free Software Foundation.
@@ -16,12 +19,6 @@
 #define __RF24_H__
 
 #include "RF24_config.h"
-
-#if defined (RF24_LINUX) || defined (LITTLEWIRE)
-  #include "utility/includes.h"
-#elif defined SOFTSPI
-  #include <DigitalIO.h>
-#endif
 
 /**
  * Power Amplifier level.
@@ -51,26 +48,7 @@ typedef enum { RF24_CRC_DISABLED = 0, RF24_CRC_8, RF24_CRC_16 } rf24_crclength_e
 class RF24
 {
 private:
-#ifdef SOFTSPI
-  SoftSPI<SOFT_SPI_MISO_PIN, SOFT_SPI_MOSI_PIN, SOFT_SPI_SCK_PIN, SPI_MODE> spi;
-#elif defined (SPI_UART)
-  SPIUARTClass uspi;
-#endif
-
-#if defined (RF24_LINUX) || defined (XMEGA_D3) /* XMEGA can use SPI class */
-  SPI spi;
-#endif
-#if defined (MRAA)
-  GPIO gpio;
-#endif
-
-  uint8_t ce_pin; /**< "Chip Enable" pin, activates the RX or TX role */
-  uint8_t csn_pin; /**< SPI Chip select */
   uint16_t spi_speed; /**< SPI Bus Speed */
-#if defined (RF24_LINUX) || defined (XMEGA_D3)
-  uint8_t spi_rxbuff[32+1] ; //SPI receive buffer (payload max 32 bytes)
-  uint8_t spi_txbuff[32+1] ; //SPI transmit buffer (payload max 32 bytes + 1 byte for the command)
-#endif  
   bool p_variant; /* False for RF24L01 and true for RF24L01P */
   uint8_t payload_size; /**< Fixed size of payloads */
   bool dynamic_payloads_enabled; /**< Whether dynamic payloads are enabled. */
@@ -78,7 +56,6 @@ private:
   uint8_t addr_width; /**< The address width to use - 3,4 or 5 bytes. */
   uint32_t txRxDelay; /**< Var for adjusting delays depending on datarate */
   
-
 protected:
   /**
    * SPI transactions
@@ -104,12 +81,8 @@ public:
    *
    * Creates a new instance of this driver.  Before using, you create an instance
    * and send in the unique pins that this chip is connected to.
-   *
-   * @param _cepin The pin attached to Chip Enable on the RF module
-   * @param _cspin The pin attached to Chip Select
    */
-  RF24(uint8_t _cepin, uint8_t _cspin);
-  //#if defined (RF24_LINUX)
+  RF24();
   
     /**
   * Optional Raspberry Pi Constructor
@@ -117,17 +90,10 @@ public:
   * Creates a new instance of this driver.  Before using, you create an instance
   * and send in the unique pins that this chip is connected to.
   *
-  * @param _cepin The pin attached to Chip Enable on the RF module
-  * @param _cspin The pin attached to Chip Select
   * @param spispeed For RPi, the SPI speed in MHZ ie: BCM2835_SPI_SPEED_8MHZ
   */
   
-  RF24(uint8_t _cepin, uint8_t _cspin, uint32_t spispeed );
-  //#endif
-
-  #if defined (RF24_LINUX)
-  virtual ~RF24() {};
-  #endif
+  RF24(uint32_t spispeed);
 
   /**
    * Begin operation of the chip
@@ -641,7 +607,7 @@ s   *
    *
    * @return true if this is a legitimate radio
    */
-  bool isValid() { return ce_pin != 0xff && csn_pin != 0xff; }
+  bool isValid() { return true; }
   
    /**
    * Close a pipe after it has been previously opened.
@@ -1842,62 +1808,6 @@ private:
  *
  * <br><br><br>
  *
- * 
- * @page ATXMEGA ATXMEGA
- * 
- * The RF24 driver can be build as a static library with Atmel Studio 7 in order to be included as any other library in another program for the XMEGA family.
- *
- * Currently only the </b>ATXMEGA256D3</b> is implemented.
- * 
- * @section Preparation 
- * 
- * Create an empty GCC Static Library project in AS7.<br>
- * As not all files are required, copy the following directory structure in the project:
- * 
- * @code
- * utility\
- *   ATXMega256D3\
- *     compatibility.c
- *     compatibility.h
- *     gpio.cpp
- *     gpio.h
- *     gpio_helper.c
- *     gpio_helper.h
- *     includes.h
- *     RF24_arch_config.h
- *     spi.cpp
- *     spi.h
- * nRF24L01.h
- * printf.h
- * RF24.cpp
- * RF24.h
- * RF24_config.h
- * @endcode
- * 
- * @section Usage
- * 
- * Add the library to your project!</br>
- * In the file where the **main()** is put the following in order to update the millisecond functionality:
- * 
- * @code
- * ISR(TCE0_OVF_vect)
- * {
- * 	update_milisec();
- * }
- * @endcode
- * 
- * Declare the rf24 radio with **RF24 radio(XMEGA_PORTC_PIN3, XMEGA_SPI_PORT_C);**
- * 
- * First parameter is the CE pin which can be any available pin on the uC.
- * 
- * Second parameter is the CS which can be on port C (**XMEGA_SPI_PORT_C**) or on port D (**XMEGA_SPI_PORT_D**). 
- * 
- * Call the **__start_timer()** to start the millisecond timer.
- * 
- * @note Note about the millisecond functionality:<br>
- * 
- * 	The millisecond functionality is based on the TCE0 so don't use these pins as IO.<br>
- * 	The operating frequency of the uC is 32MHz. If you have other frequency change the TCE0 registers appropriatly in function **__start_timer()** in **compatibility.c** file for your frequency. 
  *
  * @page Portability RF24 Portability
  *
@@ -1942,4 +1852,3 @@ private:
  */
 
 #endif // __RF24_H__
-
